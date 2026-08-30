@@ -1,0 +1,49 @@
+# El latido de producción del holding, en su propio repositorio PÚBLICO.
+#
+# POR QUÉ AQUÍ Y NO EN `runner-ci-cd`, DONDE NACIÓ. Desde el 2026-08-25 GitHub no
+# arranca ningún job en ejecutor de pago de la cuenta («The job was not started
+# because recent account payments have failed or your spending limit needs to be
+# increased»), y la decisión de dirección fue no pagar: el trabajo lo hace el pool
+# propio. Pero el latido es la excepción con nombre: un vigilante que corre en la
+# máquina vigilada se apaga con ella, así que NO puede ir al pool. En un repositorio
+# privado consume minutos facturables; en uno público, GitHub no cobra los minutos
+# de sus propios ejecutores. Eso es lo único que cambia: el guion y la lista son
+# copias literales de `runner-ci-cd`, que sigue siendo la fuente de verdad y cuya
+# CI comprueba que estas copias no se desvían (decisión D-2026-08-30 de la matriz).
+#
+# LO QUE HAY AQUÍ ES PÚBLICO A PROPÓSITO: quince nombres de host que ya están en el
+# DNS y un bucle de `curl`. Nada más puede entrar en este repositorio.
+name: Latido de producción
+
+on:
+  schedule:
+    # Cada hora, en el minuto 17 para no coincidir con el aluvión de crons que todo
+    # el mundo pone en punto. Detecta un apagón en menos de 60 minutos.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Si una ejecución se solapa con la anterior (red lenta, reintentos), la nueva
+# manda: interesa el estado de AHORA, no acumular cola.
+concurrency:
+  group: latido-produccion
+  cancel-in-progress: true
+
+jobs:
+  latido:
+    name: ¿Responde CADA producción pública?
+    # `ubuntu-latest` A SABIENDAS, y es la única pieza del holding que debe estarlo:
+    # tiene que vivir fuera de la máquina que vigila.
+    runs-on: ubuntu-latest
+    # 30, NO 10. Un apagón total es el caso LENTO: cada dominio agota sus 3 intentos
+    # (3 × 15 s de espera + 20 s entre intentos) antes de darse por muerto, y con
+    # quince dominios eso son ~21 minutos. Con menos, GitHub mataría el job por
+    # tiempo y el correo diría «cancelado» en vez de «APAGÓN».
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: ¿Responden todas las producciones públicas?
+        shell: bash
+        run: ./scripts/latido.sh

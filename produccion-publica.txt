@@ -1,0 +1,37 @@
+# LAS PRODUCCIONES PÚBLICAS DEL HOLDING, una por línea.
+#
+# QUÉ ES ESTA LISTA Y POR QUÉ EXISTE EN UN FICHERO
+#
+# El latido corre FUERA de la máquina —en un runner de GitHub— precisamente para
+# seguir vivo cuando la máquina no lo está. Eso significa que no puede preguntarle
+# a Traefik qué publica: tiene que llevar la lista consigo.
+#
+# Y UNA LISTA ESCRITA A MANO SOLO VIGILA LO QUE ALGUIEN SE ACORDÓ DE APUNTAR. En
+# este holding eso ya costó caro: el vigilante de copias comprobaba ocho rutas
+# escritas a mano e informaba «las 8 copias están al día» sin mentir, mientras dos
+# bases de PRODUCCIÓN llevaban meses sin una sola copia porque nunca se apuntaron.
+#
+# Por eso esta lista NO se queda sola: `verificar-despliegues.sh` la compara contra
+# los routers `websecure` que Traefik sirve de verdad, y se pone rojo si sobra o
+# falta alguno. La lista puede estar mal un rato; no puede estar mal en silencio.
+#
+# NO van aquí los dominios del punto de entrada `admin` (consolas: portainer,
+# grafana, vault, el panel de Traefik, el gestor…). Esos NO deben responder desde
+# internet: si respondieran, el problema sería justo el contrario.
+#
+# Actualizada el 2026-08-19 desde los routers vivos del servidor.
+api-loyalhub.efactu.eu
+api.comunidad.efactu.eu
+api.cromos.efactu.eu
+cdn.efactu.eu
+comunidad.efactu.eu
+cromos.efactu.eu
+dis.efactu.eu
+dpesca.efactu.eu
+exp.efactu.eu
+hs.efactu.eu
+jmgp.efactu.eu
+loyalhub.efactu.eu
+ntfy.efactu.eu
+pesca.efactu.eu
+wallet.efactu.eu
