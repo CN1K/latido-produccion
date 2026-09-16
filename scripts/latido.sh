@@ -107,8 +107,9 @@ echo
 echo "vivos: $vivos/${#HOSTS[@]}"
 
 # EL HOMBRE MUERTO DEL HOLDING ENTERO, y lo pinga este guion porque es lo único
-# que corre FUERA de la máquina. Un check en healthchecks.io que espera un ping
-# cada hora cubre lo que ningún vigilante de dentro puede ver: la máquina apagada
+# que corre FUERA de la máquina. Un check en healthchecks.io —cuya cadencia NO es
+# la del cron, ver el flujo que lo lanza— cubre lo que ningún vigilante de dentro
+# puede ver: la máquina apagada
 # (2026-08-08: 11 h 42 min sin aviso) y este mismo latido dejando de correr —
 # GitHub desactiva los `schedule` de un repositorio público sin actividad en 60
 # días, y una cuenta bloqueada tampoco arranca nada—. El correo de GitHub por
