@@ -46,9 +46,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: ¿Responden todas las producciones públicas?
         shell: bash
-        # EL HOMBRE MUERTO DEL HOLDING: la URL de ping de healthchecks.io (Period 1 h,
-        # Grace 45 min: el cron es a y 17 y GitHub retrasa los `schedule` en horas
-        # punta) va en el secreto LATIDO_HC_URL de ESTE repositorio. Un secreto sí
+        # EL HOMBRE MUERTO DEL HOLDING: la URL de ping de healthchecks.io va en el
+        # secreto LATIDO_HC_URL de ESTE repositorio. La cadencia del check NO es la
+        # del cron: GitHub retrasa y se salta los `schedule` a discreción (medido en
+        # runner-ci-cd sobre 99 arranques: hueco medio 3,91 h, máximo 6,63 h), así
+        # que el check vive en healthchecks.io con **Period 6 h + Grace 2 h** (puesto
+        # por el dueño el 2026-09-18; antes 1 h / 45 min, y avisaba en falso varias
+        # veces al día). La cifra se vuelve a medir con el mandato que documenta
+        # runner-ci-cd/.github/workflows/latido-produccion.yml, no se copia. Un secreto sí
         # cabe en un repositorio público —lo que no cabe es su valor en un fichero—:
         # `schedule` y `push` lo reciben; un PR de un fork no, y ahí latido.sh
         # simplemente no pinga. Sin el secreto, la variable llega vacía y el latido
