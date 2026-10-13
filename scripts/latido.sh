@@ -30,6 +30,14 @@
 # 404 de una aplicación son producciones sirviendo, y cada redespliegue sería una
 # falsa alarma; una alarma que cría lobos deja de leerse.
 #
+# EL NOMBRE SIN DIRECCIÓN TAMPOCO ES UN APAGÓN. La noche del 12 al 13-10 los dominios
+# —CNAME a un nombre del proveedor de DNS dinámico— se quedaron horas sin registro A,
+# curl no llegó ni a conectar y este latido dijo «APAGÓN», el mismo mensaje que con la
+# máquina apagada. La máquina estaba viva, y el remedio era otro: revisar el proveedor
+# y su actualizador, no encender nada. curl ya distingue los casos con su código de
+# salida (6 es «no se pudo resolver el nombre», distinto de 7, 28 o un fallo de TLS),
+# y eso es lo que se mira: sin `dig` ni ninguna otra dependencia.
+#
 # Uso:  latido.sh [fichero-de-dominios]     (por defecto, produccion-publica.txt)
 # Variables de ensayo: LATIDO_INTENTOS, LATIDO_ESPERA, LATIDO_CURL
 set -uo pipefail
@@ -62,10 +70,24 @@ fi
 vivos=0
 muertos=()
 sin_ruta=0   # de los muertos, cuántos reciben el 404 del PROPIO Traefik (sin router)
+sin_dns=()   # de los muertos, los que en su ÚLTIMO intento no resolvieron el nombre
+
+# Por qué no contestó, dicho con el código de salida de curl. Solo se nombran los que
+# piden un remedio distinto; el resto sale con su número para que se pueda buscar.
+porque_curl() {  # porque_curl <rc>
+  case "$1" in
+    6) echo "el nombre no resuelve (curl 6)" ;;
+    7) echo "no conecta (curl 7)" ;;
+    28) echo "plazo agotado (curl 28)" ;;
+    35|60) echo "fallo de TLS (curl $1)" ;;
+    *) echo "curl $1" ;;
+  esac
+}
 
 for h in "${HOSTS[@]}"; do
   ok=0
   motivo=""
+  ultimo_rc=0
   for intento in $(seq 1 "$INTENTOS"); do
     # `-w '%{http_code}'` imprime `000` cuando curl falla, así que hay que exigir
     # ADEMÁS que curl termine bien: sin eso, un fallo de red se leía como respuesta.
@@ -73,6 +95,7 @@ for h in "${HOSTS[@]}"; do
     # es lo que separa el 404 de una aplicación del 404 del propio gateway.
     respuesta=$("$CURL" -s -o /dev/null -w '%{http_code} %header{strict-transport-security}' --max-time 15 "https://$h/" 2>/dev/null)
     rc=$?
+    ultimo_rc=$rc
     # Un espacio de más, para que el corte sea el mismo con cabecera, sin ella, o con
     # un curl de ensayo que imprime solo el código.
     respuesta="$respuesta "
@@ -95,11 +118,14 @@ for h in "${HOSTS[@]}"; do
       fi
       echo "  $h -> $motivo (intento $intento/$INTENTOS)"
     else
-      echo "  $h -> sin respuesta (intento $intento/$INTENTOS)"
+      echo "  $h -> sin respuesta: $(porque_curl "$rc") (intento $intento/$INTENTOS)"
     fi
     [ "$intento" -lt "$INTENTOS" ] && sleep "$ESPERA"
   done
   if [ "$ok" = 1 ]; then vivos=$(( vivos + 1 )); else muertos+=("$h"); fi
+  # El ÚLTIMO intento, que es el que lo da por muerto: un nombre que no resolvió a la
+  # primera y luego no conecta ya tiene dirección, y al revés.
+  [ "$ok" = 1 ] || [ "$ultimo_rc" -ne 6 ] || sin_dns+=("$h")
   case "$motivo" in *"SIN RUTA"*) sin_ruta=$(( sin_ruta + 1 )) ;; esac
 done
 
@@ -114,10 +140,10 @@ echo "vivos: $vivos/${#HOSTS[@]}"
 # GitHub desactiva los `schedule` de un repositorio público sin actividad en 60
 # días, y una cuenta bloqueada tampoco arranca nada—. El correo de GitHub por
 # flujo fallido sigue; esto añade un canal que no depende de GitHub para avisar.
-# Con fallo —apagón, caída o gateway sin rutas— se pinga `/fail` (alerta
-# inmediata, sin esperar al plazo). Sin URL no hace nada: en el ensayo local no la
-# hay. Y un ping que no llega NO cambia el veredicto: lo que se juzga son las
-# producciones, no el servicio de avisos.
+# Con fallo —apagón, caída, gateway sin rutas o DNS sin dirección— se pinga
+# `/fail` (alerta inmediata, sin esperar al plazo). Sin URL no hace nada: en el
+# ensayo local no la hay. Y un ping que no llega NO cambia el veredicto: lo que
+# se juzga son las producciones, no el servicio de avisos.
 # La URL llega por LATIDO_HC_URL (secreto del repositorio que ejecuta esto, ver
 # el yml) y NUNCA se escribe aquí: este fichero es público.
 hombre_muerto() {  # hombre_muerto [/fail]
@@ -136,6 +162,15 @@ if [ "$sin_ruta" -gt 0 ] && [ "$vivos" -eq 0 ]; then
   exit 1
 fi
 
+# EL NOMBRE SIN DIRECCIÓN NO ES UN APAGÓN, y también se dice ANTES: si ninguna
+# responde y TODAS fallaron por DNS en su último intento, nadie ha llegado a preguntar
+# a la máquina. Puede estar viva; lo que falta es el registro que apunta a ella.
+if [ "$vivos" -eq 0 ] && [ "${#sin_dns[@]}" -eq "${#muertos[@]}" ]; then
+  echo "::error::DNS SIN DIRECCIÓN: ninguna de las ${#HOSTS[@]} producciones resuelve su nombre tras $INTENTOS intentos (curl 6). La máquina puede estar viva: revisa el proveedor de DNS dinámico y su actualizador antes de tocar la máquina."
+  hombre_muerto /fail
+  exit 1
+fi
+
 if [ "$vivos" -eq 0 ]; then
   echo "::error::APAGÓN: ninguna de las ${#HOSTS[@]} producciones responde tras $INTENTOS intentos."
   hombre_muerto /fail
@@ -145,6 +180,7 @@ fi
 if [ "${#muertos[@]}" -gt 0 ]; then
   echo "::error::CAÍDA: ${#muertos[@]} de ${#HOSTS[@]} producciones no responden: ${muertos[*]-}"
   [ "$sin_ruta" -gt 0 ] && echo "  ($sin_ruta de ellas con el 404 del propio Traefik: sin router para ese dominio)"
+  [ "${#sin_dns[@]}" -gt 0 ] && echo "  (${#sin_dns[@]} de ellas sin dirección en DNS: ${sin_dns[*]-}; el nombre no resuelve, mira el proveedor de DNS dinámico)"
   echo "  (las demás sí contestan, así que la máquina está viva: es el servicio)"
   hombre_muerto /fail
   exit 1
