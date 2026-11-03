@@ -26,6 +26,7 @@ api.cromos.efactu.eu
 cdn.efactu.eu
 comunidad.efactu.eu
 cromos.efactu.eu
+cv.efactu.eu
 dis.efactu.eu
 dpesca.efactu.eu
 exp.efactu.eu
